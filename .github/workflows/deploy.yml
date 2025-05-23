@@ -1,0 +1,10 @@
+# .github/workflows/deploy.yml
+   name: Deploy
+   on: push
+   jobs:
+     deploy:
+       runs-on: ubuntu-latest
+       steps:
+         - uses: actions/checkout@v2
+         - run: npm install express multer cors
+         - run: node server.js
