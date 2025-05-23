@@ -3,12 +3,17 @@ const multer = require("multer");
 const path = require("path");
 const mongoose = require("mongoose");
 const fs = require("fs");
+const cors = require("cors");
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
+
+// Middleware
+app.use(cors());
+app.use(express.json());
 
 // MongoDB setup
-mongoose.connect("mongodb://localhost:27017/kimochi", {
+mongoose.connect(process.env.MONGODB_URI || "mongodb://localhost:27017/kimochi", {
     useNewUrlParser: true,
     useUnifiedTopology: true,
 });
@@ -20,7 +25,7 @@ const File = mongoose.model("File", {
     uploadDate: { type: Date, default: Date.now },
 });
 
-// Multer storage setup
+// File storage configuration
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         const uploadDir = "uploads/";
@@ -34,15 +39,23 @@ const storage = multer.diskStorage({
     },
 });
 
-const upload = multer({ storage });
+const upload = multer({ 
+    storage,
+    limits: { fileSize: 100 * 1024 * 1024 } // 100MB limit
+});
 
 // Serve static files
-app.use(express.static("public"));
+app.use(express.static(path.join(__dirname, 'public')));
 
-// Upload endpoint
+// File upload endpoint
 app.post("/upload", upload.single("file"), async (req, res) => {
     try {
-        if (!req.file) throw new Error("No file uploaded");
+        if (!req.file) {
+            return res.status(400).json({ 
+                success: false, 
+                error: "No file uploaded" 
+            });
+        }
 
         const newFile = new File({
             filename: req.file.filename,
@@ -54,13 +67,28 @@ app.post("/upload", upload.single("file"), async (req, res) => {
 
         res.json({
             success: true,
-            url: `https://files.kimochi.pics/${req.file.filename}`,
+            url: `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`,
+            filename: req.file.filename
         });
     } catch (err) {
-        res.json({
+        console.error("Upload error:", err);
+        res.status(500).json({
             success: false,
-            error: err.message,
+            error: err.message
         });
+    }
+});
+
+// File retrieval endpoint
+app.get("/file/:filename", async (req, res) => {
+    try {
+        const file = await File.findOne({ filename: req.params.filename });
+        if (!file) {
+            return res.status(404).json({ error: "File not found" });
+        }
+        res.sendFile(path.join(__dirname, 'uploads', req.params.filename));
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 });
 
