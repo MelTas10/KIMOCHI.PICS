@@ -27,19 +27,26 @@
         
         .container {
             text-align: center;
-            background: rgba(255, 255, 255, 0.8);
+            background: rgba(255, 255, 255, 0.9);
             padding: 2rem;
             border-radius: 15px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
             max-width: 600px;
             width: 90%;
             position: relative;
             overflow: hidden;
+            animation: fadeIn 0.8s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
         
         h1 {
             color: #ff6b9d;
             margin-bottom: 1.5rem;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
         }
         
         .upload-area {
@@ -49,11 +56,21 @@
             margin: 1rem 0;
             cursor: pointer;
             transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+            animation: borderPulse 2s infinite;
+        }
+        
+        @keyframes borderPulse {
+            0% { border-color: #aaa; }
+            50% { border-color: #ff6b9d; }
+            100% { border-color: #aaa; }
         }
         
         .upload-area:hover {
-            border-color: #ff6b9d;
             background: rgba(255, 214, 224, 0.3);
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
         }
         
         #file-input {
@@ -69,11 +86,13 @@
             font-size: 1rem;
             cursor: pointer;
             transition: all 0.3s;
+            box-shadow: 0 4px 8px rgba(255, 107, 157, 0.3);
         }
         
         .btn:hover {
             background: #ff4785;
             transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(255, 107, 157, 0.4);
         }
         
         .anime-girl {
@@ -83,6 +102,13 @@
             width: 80px;
             height: 80px;
             transition: opacity 0.5s;
+            filter: drop-shadow(0 0 5px rgba(0, 0, 0, 0.2));
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
         }
         
         .loading {
@@ -106,14 +132,31 @@
         .result {
             margin-top: 1rem;
             word-break: break-all;
+            animation: fadeIn 0.5s ease;
         }
         
         .result a {
             color: #ff6b9d;
             text-decoration: none;
+            font-weight: bold;
         }
         
         .result a:hover {
+            text-decoration: underline;
+        }
+        
+        .privacy-link {
+            margin-top: 1.5rem;
+            font-size: 0.8rem;
+            color: #888;
+        }
+        
+        .privacy-link a {
+            color: #ff6b9d;
+            text-decoration: none;
+        }
+        
+        .privacy-link a:hover {
             text-decoration: underline;
         }
     </style>
@@ -136,9 +179,25 @@
         </div>
         
         <div class="result" id="result"></div>
+        
+        <div class="privacy-link">
+            <a href="#" id="privacy-link">Privacy Policy</a>
+        </div>
     </div>
     
     <img class="anime-girl" id="anime-girl" src="" alt="Anime Girl">
+    
+    <!-- Privacy Policy Modal -->
+    <div id="privacy-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); justify-content: center; align-items: center; z-index: 1000;">
+        <div style="background: white; padding: 2rem; border-radius: 10px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto;">
+            <h2>Privacy Policy</h2>
+            <p><strong>Last Updated:</strong> 2024</p>
+            <p>This service is operated by <strong>bacon_drobashnikov (Telegram: @baconstoprlly)</strong>.</p>
+            <p>We respect your privacy. Uploaded files are stored temporarily and may be deleted after 30 days.</p>
+            <p>We do not sell your data. By using this service, you agree to these terms.</p>
+            <button id="close-modal" style="margin-top: 1rem; padding: 0.5rem 1rem; background: #ff6b9d; color: white; border: none; border-radius: 5px; cursor: pointer;">Close</button>
+        </div>
+    </div>
     
     <script>
         // Anime girls rotation
@@ -153,7 +212,7 @@
             "https://files.catbox.moe/3vnr1x.png"
         ];
         
-        let currentGirl = 0;
+        let currentGirl = Math.floor(Math.random() * girls.length);
         const animeGirl = document.getElementById("anime-girl");
         
         function changeGirl() {
@@ -165,7 +224,7 @@
         }
         
         // Initial girl
-        animeGirl.src = girls[0];
+        animeGirl.src = girls[currentGirl];
         setTimeout(changeGirl, 5000);
         
         // File upload logic
@@ -179,17 +238,20 @@
         
         uploadArea.addEventListener("dragover", (e) => {
             e.preventDefault();
+            uploadArea.style.animation = "none";
             uploadArea.style.borderColor = "#ff6b9d";
             uploadArea.style.background = "rgba(255, 214, 224, 0.3)";
         });
         
         uploadArea.addEventListener("dragleave", () => {
+            uploadArea.style.animation = "borderPulse 2s infinite";
             uploadArea.style.borderColor = "#aaa";
             uploadArea.style.background = "transparent";
         });
         
         uploadArea.addEventListener("drop", (e) => {
             e.preventDefault();
+            uploadArea.style.animation = "borderPulse 2s infinite";
             uploadArea.style.borderColor = "#aaa";
             uploadArea.style.background = "transparent";
             
@@ -199,7 +261,10 @@
         });
         
         uploadBtn.addEventListener("click", async () => {
-            if (!fileInput.files.length) return;
+            if (!fileInput.files.length) {
+                result.innerHTML = `<p style="color: red;">Please select a file first!</p>`;
+                return;
+            }
             
             const file = fileInput.files[0];
             const formData = new FormData();
@@ -209,10 +274,12 @@
             result.innerHTML = "";
             
             try {
-                const response = await fetch("/upload", {
+                const response = await fetch("http://localhost:3000/upload", {  // ← Убедись, что сервер запущен!
                     method: "POST",
                     body: formData
                 });
+                
+                if (!response.ok) throw new Error("Server error");
                 
                 const data = await response.json();
                 
@@ -222,13 +289,27 @@
                         <p><a href="${data.url}" target="_blank">${data.url}</a></p>
                     `;
                 } else {
-                    result.innerHTML = `<p style="color: red;">Error: ${data.error}</p>`;
+                    throw new Error(data.error || "Unknown error");
                 }
             } catch (err) {
                 result.innerHTML = `<p style="color: red;">Upload failed: ${err.message}</p>`;
             } finally {
                 loading.style.display = "none";
             }
+        });
+        
+        // Privacy Policy Modal
+        const privacyLink = document.getElementById("privacy-link");
+        const privacyModal = document.getElementById("privacy-modal");
+        const closeModal = document.getElementById("close-modal");
+        
+        privacyLink.addEventListener("click", (e) => {
+            e.preventDefault();
+            privacyModal.style.display = "flex";
+        });
+        
+        closeModal.addEventListener("click", () => {
+            privacyModal.style.display = "none";
         });
     </script>
 </body>
