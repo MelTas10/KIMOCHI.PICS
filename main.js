@@ -1,167 +1,151 @@
-document.addEventListener("DOMContentLoaded", () => {
-    // Configuration
-    const girls = [
-        "https://files.catbox.moe/mc1yub.png",
-        "https://files.catbox.moe/q0njjx.png",
-        "https://files.catbox.moe/0qbkl3.png",
-        "https://files.catbox.moe/e17iyc.png",
-        "https://files.catbox.moe/rpcsff.png",
-        "https://files.catbox.moe/9tyauh.png",
-        "https://files.catbox.moe/fcnus0.png",
-        "https://files.catbox.moe/3vnr1x.png"
-    ];
+// Конфиг
+const CONFIG = {
+  API_URL: '/upload', // Относительный путь для GitHub Pages
+  MAX_SIZE: 100 * 1024 * 1024 // 100MB
+};
 
-    // DOM Elements
-    const animeGirl = document.getElementById("anime-girl");
-    const uploadArea = document.getElementById("upload-area");
-    const fileInput = document.getElementById("file-input");
-    const uploadBtn = document.getElementById("upload-btn");
-    const loading = document.getElementById("loading");
-    const result = document.getElementById("result");
-    const progressText = document.getElementById("progress");
-    const loadingBar = document.getElementById("loading-bar");
-    const privacyLink = document.getElementById("privacy-link");
-    const privacyModal = document.getElementById("privacy-modal");
-    const closeModal = document.getElementById("close-modal");
+// Аниме-девушки (Catbox)
+const GIRLS = [
+  "https://files.catbox.moe/mc1yub.png",
+  "https://files.catbox.moe/q0njjx.png",
+  "https://files.catbox.moe/0qbkl3.png",
+  "https://files.catbox.moe/e17iyc.png",
+  "https://files.catbox.moe/rpcsff.png",
+  "https://files.catbox.moe/9tyauh.png",
+  "https://files.catbox.moe/fcnus0.png",
+  "https://files.catbox.moe/3vnr1x.png"
+];
 
-    // Anime girl rotation
-    let currentGirl = Math.floor(Math.random() * girls.length);
-    animeGirl.src = girls[currentGirl];
+// DOM
+const el = {
+  animeGirl: document.getElementById('anime-girl'),
+  uploadArea: document.getElementById('upload-area'),
+  fileInput: document.getElementById('file-input'),
+  uploadBtn: document.getElementById('upload-btn'),
+  loading: document.getElementById('loading'),
+  result: document.getElementById('result'),
+  progress: document.getElementById('progress')
+};
+
+// --- Инициализация ---
+function init() {
+  rotateAnimeGirls();
+  setupUpload();
+  el.uploadBtn.addEventListener('click', uploadFile);
+}
+
+// Смена аниме-девушек
+function rotateAnimeGirls() {
+  let index = 0;
+  
+  const changeGirl = () => {
+    index = (index + 1) % GIRLS.length;
+    el.animeGirl.src = GIRLS[index];
+    setTimeout(changeGirl, 3000 + Math.random() * 5000);
+  };
+
+  el.animeGirl.src = GIRLS[index];
+  el.animeGirl.onerror = changeGirl; // Пропуск битых изображений
+  setTimeout(changeGirl, 5000);
+}
+
+// Настройка загрузки
+function setupUpload() {
+  // Drag and Drop
+  el.uploadArea.addEventListener('dragover', e => {
+    e.preventDefault();
+    el.uploadArea.classList.add('active');
+  });
+
+  el.uploadArea.addEventListener('dragleave', () => {
+    el.uploadArea.classList.remove('active');
+  });
+
+  el.uploadArea.addEventListener('drop', e => {
+    e.preventDefault();
+    el.uploadArea.classList.remove('active');
+    if (e.dataTransfer.files.length) {
+      el.fileInput.files = e.dataTransfer.files;
+      showFileInfo();
+    }
+  });
+
+  // Клик по области
+  el.uploadArea.addEventListener('click', () => el.fileInput.click());
+  el.fileInput.addEventListener('change', showFileInfo);
+}
+
+// Показ информации о файле
+function showFileInfo() {
+  if (!el.fileInput.files.length) return;
+  
+  const file = el.fileInput.files[0];
+  const fileSize = (file.size / (1024 * 1024)).toFixed(2) + ' MB';
+  
+  el.uploadArea.innerHTML = `
+    <p>📄 <strong>${file.name}</strong></p>
+    <p>${fileSize}</p>
+  `;
+}
+
+// Загрузка файла
+async function uploadFile() {
+  if (!el.fileInput.files.length) {
+    showResult('❌ Выберите файл!', 'error');
+    return;
+  }
+
+  const file = el.fileInput.files[0];
+  if (file.size > CONFIG.MAX_SIZE) {
+    showResult(`❌ Файл слишком большой (макс. ${CONFIG.MAX_SIZE / (1024 * 1024)} MB)`, 'error');
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    el.loading.style.display = 'block';
+    el.result.innerHTML = '';
+
+    const response = await fetch(CONFIG.API_URL, {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!response.ok) throw new Error('Ошибка сервера');
+
+    const data = await response.json();
     
-    function changeGirl() {
-        currentGirl = (currentGirl + 1) % girls.length;
-        animeGirl.src = girls[currentGirl];
-        setTimeout(changeGirl, 3000 + Math.random() * 7000);
+    if (data.success) {
+      showResult(`
+        <p>✅ Файл загружен!</p>
+        <a href="${data.url}" target="_blank">${data.url}</a>
+        <button onclick="copyToClipboard('${data.url}')">Копировать</button>
+      `, 'success');
+    } else {
+      throw new Error(data.error || 'Неизвестная ошибка');
     }
-    setTimeout(changeGirl, 5000);
+  } catch (error) {
+    showResult(`❌ Ошибка: ${error.message}`, 'error');
+    console.error(error);
+  } finally {
+    el.loading.style.display = 'none';
+  }
+}
 
-    // File upload handling
-    uploadArea.addEventListener("click", () => fileInput.click());
+// Показ результата
+function showResult(msg, type) {
+  el.result.innerHTML = msg;
+  el.result.className = type;
+}
 
-    uploadArea.addEventListener("dragover", (e) => {
-        e.preventDefault();
-        uploadArea.style.animation = "none";
-        uploadArea.style.borderColor = "#ff6b9d";
-        uploadArea.style.background = "rgba(255, 214, 224, 0.3)";
-    });
+// Копирование в буфер
+window.copyToClipboard = text => {
+  navigator.clipboard.writeText(text)
+    .then(() => alert('Ссылка скопирована!'))
+    .catch(err => console.error(err));
+};
 
-    uploadArea.addEventListener("dragleave", () => {
-        uploadArea.style.animation = "borderPulse 2s infinite";
-        uploadArea.style.borderColor = "#aaa";
-        uploadArea.style.background = "transparent";
-    });
-
-    uploadArea.addEventListener("drop", (e) => {
-        e.preventDefault();
-        uploadArea.style.animation = "borderPulse 2s infinite";
-        uploadArea.style.borderColor = "#aaa";
-        uploadArea.style.background = "transparent";
-        
-        if (e.dataTransfer.files.length) {
-            fileInput.files = e.dataTransfer.files;
-            updateFileInfo();
-        }
-    });
-
-    fileInput.addEventListener("change", updateFileInfo);
-
-    function updateFileInfo() {
-        if (fileInput.files.length) {
-            const file = fileInput.files[0];
-            uploadArea.querySelector("p").textContent = 
-                `📄 ${file.name} (${formatFileSize(file.size)})`;
-        }
-    }
-
-    function formatFileSize(bytes) {
-        if (bytes === 0) return "0 Bytes";
-        const k = 1024;
-        const sizes = ["Bytes", "KB", "MB", "GB"];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-    }
-
-    // Upload functionality
-    uploadBtn.addEventListener("click", uploadFile);
-
-    function uploadFile() {
-        if (!fileInput.files.length) {
-            showResult("Please select a file first!", "error");
-            return;
-        }
-
-        const file = fileInput.files[0];
-        const formData = new FormData();
-        formData.append("file", file);
-
-        loading.style.display = "block";
-        result.innerHTML = "";
-        loadingBar.style.width = "0%";
-        progressText.textContent = "0%";
-
-        const xhr = new XMLHttpRequest();
-        xhr.open("POST", "/upload", true);
-
-        xhr.upload.onprogress = (e) => {
-            if (e.lengthComputable) {
-                const percent = Math.round((e.loaded / e.total) * 100);
-                progressText.textContent = `${percent}%`;
-                loadingBar.style.width = `${percent}%`;
-            }
-        };
-
-        xhr.onload = () => {
-            loading.style.display = "none";
-            
-            if (xhr.status === 200) {
-                const response = JSON.parse(xhr.responseText);
-                if (response.success) {
-                    showResult(`
-                        <p>File uploaded successfully! 🎉</p>
-                        <p>URL: <a href="${response.url}" target="_blank">${response.url}</a></p>
-                        <button onclick="copyToClipboard('${response.url}')" class="btn copy-btn">
-                            Copy URL
-                        </button>
-                    `, "success");
-                } else {
-                    showResult(`Upload failed: ${response.error}`, "error");
-                }
-            } else {
-                showResult(`Upload failed: ${xhr.statusText}`, "error");
-            }
-        };
-
-        xhr.onerror = () => {
-            loading.style.display = "none";
-            showResult("Network error occurred", "error");
-        };
-
-        xhr.send(formData);
-    }
-
-    function showResult(message, type) {
-        result.innerHTML = message;
-        result.className = "result " + type;
-    }
-
-    // Modal handling
-    privacyLink.addEventListener("click", (e) => {
-        e.preventDefault();
-        privacyModal.style.display = "flex";
-    });
-
-    closeModal.addEventListener("click", () => {
-        privacyModal.style.display = "none";
-    });
-
-    // Copy to clipboard function
-    window.copyToClipboard = (text) => {
-        navigator.clipboard.writeText(text).then(() => {
-            const copyBtns = document.querySelectorAll(".copy-btn");
-            copyBtns.forEach(btn => {
-                btn.textContent = "Copied!";
-                setTimeout(() => btn.textContent = "Copy URL", 2000);
-            });
-        });
-    };
-});
+// Запуск
+document.addEventListener('DOMContentLoaded', init);
